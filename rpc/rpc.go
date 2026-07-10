@@ -129,18 +129,40 @@ func (c *CLI) MatchMirror(ctx context.Context, in *MatchRequest) (*MatchReply, e
 		return nil, fmt.Errorf("can't fetch the list of mirrors: %w", err)
 	}
 
-	reply := &MatchReply{}
+	reply := &MatchReply{
+		Mirrors: matchMirrorsByPattern(mirrors, in.Pattern),
+	}
 
+	return reply, nil
+}
+
+// matchMirrorsByPattern returns a list of mirrors:
+// - if the pattern matches a mirror's name exactly, only that mirror is returned
+// - otherwise, all mirrors containing the pattern as a substring are returned
+// - all matches are case-insensitive
+// This allows a mirror whose name is a substring of other mirror names
+// (e.g. "fcix.net" vs. "mirror.fcix.net") to still be matched unambiguously.
+func matchMirrorsByPattern(mirrors map[int]string, pattern string) []*MirrorID {
+	lowerPattern := strings.ToLower(pattern)
+
+	var matches []*MirrorID
 	for id, name := range mirrors {
-		if strings.Contains(strings.ToLower(name), strings.ToLower(in.Pattern)) {
-			reply.Mirrors = append(reply.Mirrors, &MirrorID{
+		lowerName := strings.ToLower(name)
+		if lowerName == lowerPattern {
+			return []*MirrorID{{
+				ID:   int32(id),
+				Name: name,
+			}}
+		}
+		if strings.Contains(lowerName, lowerPattern) {
+			matches = append(matches, &MirrorID{
 				ID:   int32(id),
 				Name: name,
 			})
 		}
 	}
 
-	return reply, nil
+	return matches
 }
 
 func (c *CLI) ChangeStatus(ctx context.Context, in *ChangeStatusRequest) (*empty.Empty, error) {
